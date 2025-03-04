@@ -1,8 +1,10 @@
 import copy
 import json
 import logging
+import time
 from collections.abc import Generator, Sequence
 from typing import Optional, Union, cast
+
 import tiktoken
 from dify_plugin.entities.model import AIModelEntity, ModelPropertyKey
 from dify_plugin.entities.model.llm import (
@@ -33,6 +35,7 @@ from openai.types.chat import (
     ChatCompletionMessageToolCall,
 )
 from openai.types.chat.chat_completion_chunk import ChoiceDeltaToolCall
+
 from ..common import _CommonAzureOpenAI
 from ..constants import LLM_BASE_MODELS
 
@@ -769,3 +772,70 @@ class AzureOpenAILargeLanguageModel(_CommonAzureOpenAI, LargeLanguageModel):
         if not base_model_name:
             raise ValueError("Base Model Name is required")
         return base_model_name
+
+    def invoke(
+        self,
+        model: str,
+        credentials: dict,
+        prompt_messages: list[PromptMessage],
+        model_parameters: Optional[dict] = None,
+        tools: Optional[list[PromptMessageTool]] = None,
+        stop: Optional[list[str]] = None,
+        stream: bool = True,
+        user: Optional[str] = None,
+    ) -> Generator[LLMResultChunk, None, None]:
+        """
+        Invoke large language model
+
+        :param model: model name
+        :param credentials: model credentials
+        :param prompt_messages: prompt messages
+        :param model_parameters: model parameters
+        :param tools: tools for tool calling
+        :param stop: stop words
+        :param stream: is stream response
+        :param user: unique user id
+        :param callbacks: callbacks
+        :return: full response or stream response chunk generator result
+        """
+        # validate and filter model parameters
+        if model_parameters is None:
+            model_parameters = {}
+
+        model_parameters = self._validate_and_filter_model_parameters(
+            model, model_parameters, credentials
+        )
+
+        self.started_at = time.perf_counter()
+
+        try:
+            assert isinstance(model_parameters, dict)
+            if "response_format" in model_parameters and model_parameters["response_format"] != "json_schema":
+                result = self._code_block_mode_wrapper(
+                    model=model,
+                    credentials=credentials,
+                    prompt_messages=prompt_messages,
+                    model_parameters=model_parameters,
+                    tools=tools,
+                    stop=stop,
+                    stream=stream,
+                    user=user,
+                )
+            else:
+                result = self._invoke(
+                    model,
+                    credentials,
+                    prompt_messages,
+                    model_parameters,
+                    tools,
+                    stop,
+                    stream,
+                    user,
+                )
+        except Exception as e:
+            raise self._transform_invoke_error(e) from e
+
+        if isinstance(result, LLMResult):
+            yield result.to_llm_result_chunk()
+        else:
+            yield from result
