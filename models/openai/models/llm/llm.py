@@ -3,6 +3,7 @@ import json
 import re
 import logging
 from collections.abc import Generator
+import time
 from typing import Optional, Union, cast
 import tiktoken
 
@@ -675,13 +676,18 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
             if response_format == "json_schema":
                 json_schema = model_parameters.get("json_schema")
                 if not json_schema:
-                    raise ValueError("Must define JSON Schema when the response format is json_schema")
+                    raise ValueError(
+                        "Must define JSON Schema when the response format is json_schema"
+                    )
                 try:
                     schema = json.loads(json_schema)
                 except Exception:
                     raise ValueError(f"not correct json_schema format: {json_schema}")
                 model_parameters.pop("json_schema")
-                model_parameters["response_format"] = {"type": "json_schema", "json_schema": schema}
+                model_parameters["response_format"] = {
+                    "type": "json_schema",
+                    "json_schema": schema,
+                }
             else:
                 model_parameters["response_format"] = {"type": response_format}
         elif "json_schema" in model_parameters:
@@ -1378,3 +1384,73 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
         )
 
         return entity
+
+    def invoke(
+        self,
+        model: str,
+        credentials: dict,
+        prompt_messages: list[PromptMessage],
+        model_parameters: Optional[dict] = None,
+        tools: Optional[list[PromptMessageTool]] = None,
+        stop: Optional[list[str]] = None,
+        stream: bool = True,
+        user: Optional[str] = None,
+    ) -> Generator[LLMResultChunk, None, None]:
+        """
+        Invoke large language model
+
+        :param model: model name
+        :param credentials: model credentials
+        :param prompt_messages: prompt messages
+        :param model_parameters: model parameters
+        :param tools: tools for tool calling
+        :param stop: stop words
+        :param stream: is stream response
+        :param user: unique user id
+        :param callbacks: callbacks
+        :return: full response or stream response chunk generator result
+        """
+        # validate and filter model parameters
+        if model_parameters is None:
+            model_parameters = {}
+
+        model_parameters = self._validate_and_filter_model_parameters(
+            model, model_parameters, credentials
+        )
+
+        self.started_at = time.perf_counter()
+
+        try:
+            assert isinstance(model_parameters, dict)
+            if (
+                "response_format" in model_parameters
+                and model_parameters["response_format"] != "json_schema"
+            ):
+                result = self._code_block_mode_wrapper(
+                    model=model,
+                    credentials=credentials,
+                    prompt_messages=prompt_messages,
+                    model_parameters=model_parameters,
+                    tools=tools,
+                    stop=stop,
+                    stream=stream,
+                    user=user,
+                )
+            else:
+                result = self._invoke(
+                    model,
+                    credentials,
+                    prompt_messages,
+                    model_parameters,
+                    tools,
+                    stop,
+                    stream,
+                    user,
+                )
+        except Exception as e:
+            raise self._transform_invoke_error(e) from e
+
+        if isinstance(result, LLMResult):
+            yield result.to_llm_result_chunk()
+        else:
+            yield from result
