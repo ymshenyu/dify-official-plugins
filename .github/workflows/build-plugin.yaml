@@ -1,0 +1,26 @@
+name: Build Plugins
+
+on:
+ push:
+ workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+      - name: Download Plugin Daemon
+        run: |
+          wget https://github.com/langgenius/dify-plugin-daemon/releases/download/0.0.3/dify-plugin-linux-amd64
+          chmod +x ./dify-plugin-linux-amd64
+      - name: Build Plugins
+        run: |
+          
+          ./dify-plugin-linux-amd64 plugin package ./models/openai
+          ./dify-plugin-linux-amd64 plugin package ./models/azure_openai
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          path: |
+            *.difypkg
