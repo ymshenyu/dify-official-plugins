@@ -905,7 +905,9 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
             if model.startswith("yi-"):
                 if isinstance(delta.finish_reason, str):
                     # doc: https://platform.lingyiwanwu.com/docs/api-reference
-                    has_finish_reason = delta.finish_reason.startswith(("length", "stop", "content_filter"))
+                    has_finish_reason = delta.finish_reason.startswith(
+                        ("length", "stop", "content_filter")
+                    )
 
             if (
                 not has_finish_reason
