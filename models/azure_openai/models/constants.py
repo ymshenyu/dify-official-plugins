@@ -1258,6 +1258,44 @@ LLM_BASE_MODELS = [
             ),
         ),
     ),
+    AzureBaseModel(
+        base_model_name="o3-mini",
+        entity=AIModelEntity(
+            model="fake-deployment-name",
+            label=I18nObject(
+                en_US="fake-deployment-name-label",
+            ),
+            model_type=ModelType.LLM,
+            features=[
+                ModelFeature.AGENT_THOUGHT,
+            ],
+            fetch_from=FetchFrom.CUSTOMIZABLE_MODEL,
+            model_properties={
+                ModelPropertyKey.MODE: LLMMode.CHAT.value,
+                ModelPropertyKey.CONTEXT_SIZE: 128000,
+            },
+            parameter_rules=[
+                ParameterRule(
+                    name="response_format",
+                    label=I18nObject(zh_Hans="回复格式", en_US="response_format"),
+                    type="string",
+                    help=I18nObject(
+                        zh_Hans="指定模型必须输出的格式",
+                        en_US="specifying the format that the model must output",
+                    ),
+                    required=False,
+                    options=["text", "json_object"],
+                ),
+                _get_o1_max_tokens(default=512, min_val=1, max_val=65536),
+            ],
+            pricing=PriceConfig(
+                input=1.10,
+                output=4.40,
+                unit=0.000001,
+                currency="USD",
+            ),
+        ),
+    ),
 ]
 EMBEDDING_BASE_MODELS = [
     AzureBaseModel(
